@@ -135,7 +135,7 @@ const IntroScreen: React.FC<IntroScreenProps> = ({ onStart }) => {
                 </button>
 
                 <div className="mt-20 text-[10px] text-white/20 font-mono tracking-widest uppercase">
-                    Powered by Google Gemini API • Built with React Three Fiber
+                    Procedural City Engine • Built with React Three Fiber
                 </div>
             </div>
         </div>
