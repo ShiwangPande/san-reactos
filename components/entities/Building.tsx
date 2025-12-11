@@ -15,6 +15,12 @@ interface BuildingProps {
 const Building: React.FC<BuildingProps> = ({ entity, textures, isNight, stateRef }) => {
     const groupRef = useRef<THREE.Group>(null);
     
+    // Ensure textures are loaded
+    if (!textures || !textures.modern || !textures.brick) {
+        console.warn('Building textures not loaded yet');
+        return null;
+    }
+    
     // Deterministic architecture props
     const arch = useMemo(() => {
         let h = 0;
@@ -35,7 +41,7 @@ const Building: React.FC<BuildingProps> = ({ entity, textures, isNight, stateRef
         };
     }, [entity.id, entity.color, entity.buildingType, textures]);
 
-    // Reusable Materials
+    // Reusable Materials (Improved for better GTA-style appearance)
     const mainMat = useMemo(() => (
         <meshStandardMaterial 
             map={arch.texSet.map}
@@ -44,7 +50,9 @@ const Building: React.FC<BuildingProps> = ({ entity, textures, isNight, stateRef
             emissiveMap={arch.texSet.emissiveMap}
             emissive="#ffffff"
             emissiveIntensity={isNight ? 2.5 : 0} 
-            color={arch.baseColor} 
+            color={arch.baseColor}
+            roughness={0.8}
+            metalness={0.1}
         />
     ), [arch, isNight]);
 
@@ -55,7 +63,8 @@ const Building: React.FC<BuildingProps> = ({ entity, textures, isNight, stateRef
         if (!groupRef.current) return;
         const pPos = stateRef.current.player.pos;
         const distSq = (entity.pos.x - pPos.x)**2 + (entity.pos.z - pPos.z)**2;
-        groupRef.current.visible = distSq < CULL_DISTANCE ** 2;
+        // Increased culling distance for buildings so they're visible from further away
+        groupRef.current.visible = distSq < (CULL_DISTANCE * 2) ** 2;
     });
 
     const { x: w, y: h, z: d } = entity.size;
@@ -89,65 +98,191 @@ const Building: React.FC<BuildingProps> = ({ entity, textures, isNight, stateRef
             case 'skyscraper':
                 return (
                     <>
-                        {/* Tapered Design */}
-                        <mesh position={[0, -h*0.1, 0]} castShadow receiveShadow material={mainMat}>
-                            <boxGeometry args={[w, h*0.8, d]} />
+                        {/* Foundation/Base - Simplified and fixed */}
+                        <mesh position={[0, -halfH - 0.15, 0]} castShadow receiveShadow>
+                            <boxGeometry args={[w + 0.3, 0.3, d + 0.3]} />
+                            <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
                         </mesh>
-                        <mesh position={[0, h*0.35, 0]} castShadow receiveShadow material={mainMat}>
-                            <boxGeometry args={[w*0.7, h*0.3, d*0.7]} />
+                        
+                        {/* Main Tower Base */}
+                        <mesh position={[0, -halfH + h*0.15, 0]} castShadow receiveShadow material={mainMat}>
+                            <boxGeometry args={[w, h*0.4, d]} />
                         </mesh>
-                        {/* Roof */}
-                        <mesh position={[0, halfH + 0.1, 0]} material={roofMat}>
-                             <boxGeometry args={[w*0.65, 0.2, d*0.65]} />
+                        
+                        {/* Middle Section */}
+                        <mesh position={[0, 0, 0]} castShadow receiveShadow material={mainMat}>
+                            <boxGeometry args={[w*0.9, h*0.4, d*0.9]} />
                         </mesh>
-                        {/* Antenna */}
-                        <mesh position={[0, halfH + 3, 0]} material={detailMat}>
-                             <cylinderGeometry args={[0.1, 0.3, 6]} />
+                        
+                        {/* Top Taper Section */}
+                        <mesh position={[0, halfH - h*0.2, 0]} castShadow receiveShadow material={mainMat}>
+                            <boxGeometry args={[w*0.75, h*0.2, d*0.75]} />
                         </mesh>
-                        {isNight && <pointLight position={[0, halfH + 6, 0]} color="red" distance={20} intensity={2} />}
+                        
+                        {/* Roof - More defined */}
+                        <mesh position={[0, halfH + 0.1, 0]} castShadow receiveShadow material={roofMat}>
+                             <boxGeometry args={[w*0.65, 0.4, d*0.65]} />
+                        </mesh>
+                        
+                        {/* Antenna - More realistic */}
+                        {arch.hasAntenna && (
+                            <group position={[0, halfH + 0.3, 0]}>
+                                <mesh castShadow material={detailMat}>
+                                    <cylinderGeometry args={[0.2, 0.25, 1, 8]} />
+                                </mesh>
+                                <mesh position={[0, 0.5, 0]} castShadow material={detailMat}>
+                                    <cylinderGeometry args={[0.15, 0.2, 6, 8]} />
+                                </mesh>
+                                <mesh position={[0, 3.5, 0]} material={detailMat}>
+                                    <boxGeometry args={[0.3, 0.5, 0.3]} />
+                                </mesh>
+                            </group>
+                        )}
+                        
+                        {/* Navigation light for aircraft */}
+                        {isNight && arch.hasAntenna && (
+                            <pointLight position={[0, halfH + 4, 0]} color="red" distance={40} intensity={4} />
+                        )}
                     </>
                 );
             case 'residential':
                 return (
                     <>
+                        {/* Foundation - Simplified */}
+                        <mesh position={[0, -halfH - 0.1, 0]} castShadow receiveShadow>
+                            <boxGeometry args={[w + 0.2, 0.2, d + 0.2]} />
+                            <meshStandardMaterial color="#2a2a2a" roughness={0.9} />
+                        </mesh>
+                        
+                        {/* Main Building Structure */}
                         <mesh position={[0, 0, 0]} castShadow receiveShadow material={mainMat}>
                              <boxGeometry args={[w, h, d]} />
                         </mesh>
-                        {/* Parapet */}
-                        <mesh position={[0, halfH + 0.2, 0]} material={roofMat}>
-                             <boxGeometry args={[w+0.2, 0.4, d+0.2]} />
+                        
+                        {/* Simplified Windows - Front Face Only */}
+                        {Array.from({ length: Math.min(4, Math.floor(h/3)) }).map((_, i) => {
+                            const windowY = -halfH + 2 + (i * 3);
+                            if (windowY > halfH - 1.5) return null;
+                            return (
+                                <group key={`window-${i}`} position={[0, windowY, d/2 + 0.01]}>
+                                    {/* Window Frame */}
+                                    <mesh material={detailMat}>
+                                        <boxGeometry args={[w*0.7, 0.9, 0.06]} />
+                                    </mesh>
+                                    {/* Window Glass */}
+                                    <mesh position={[0, 0, 0.03]}>
+                                        <boxGeometry args={[w*0.65, 0.8, 0.02]} />
+                                        <meshStandardMaterial 
+                                            color={isNight ? "#ffd700" : "#b3d9ff"} 
+                                            emissive={isNight ? "#ffd700" : "#000000"}
+                                            emissiveIntensity={isNight ? 1.0 : 0}
+                                            transparent
+                                            opacity={0.8}
+                                        />
+                                    </mesh>
+                                </group>
+                            );
+                        })}
+                        
+                        {/* Front Door - Simplified */}
+                        <group position={[0, -halfH + 1.2, d/2 + 0.01]}>
+                            <mesh castShadow material={detailMat}>
+                                <boxGeometry args={[1.0, 2.0, 0.08]} />
+                            </mesh>
+                            <mesh position={[0, 0, 0.04]}>
+                                <boxGeometry args={[0.9, 1.8, 0.02]} />
+                                <meshStandardMaterial color="#1a1a1a" roughness={0.3} />
+                            </mesh>
+                        </group>
+                        
+                        {/* Parapet - More defined with overhang */}
+                        <mesh position={[0, halfH + 0.2, 0]} castShadow receiveShadow material={roofMat}>
+                             <boxGeometry args={[w+0.4, 0.5, d+0.4]} />
                         </mesh>
-                        {/* Balconies */}
-                        {Array.from({ length: Math.floor(h/3) }).map((_, i) => (
-                            <group key={i} position={[0, -halfH + 2 + (i*3), d/2 + 0.25]}>
-                                <mesh castShadow material={detailMat}>
-                                    <boxGeometry args={[w*0.6, 0.1, 0.5]} />
-                                </mesh>
-                                <mesh position={[0, 0.4, 0.23]} material={detailMat}>
-                                     <boxGeometry args={[w*0.6, 0.8, 0.05]} />
-                                </mesh>
-                            </group>
-                        ))}
+                        {/* Roof Overhang */}
+                        <mesh position={[0, halfH + 0.1, 0]} material={roofMat}>
+                             <boxGeometry args={[w+0.5, 0.2, d+0.5]} />
+                        </mesh>
+                        
+                        {/* Balconies - More realistic */}
+                        {Array.from({ length: Math.floor(h/4) }).map((_, i) => {
+                            const balconyY = -halfH + 2.5 + (i * 4);
+                            if (balconyY > halfH - 1) return null;
+                            return (
+                                <group key={`balcony-${i}`} position={[0, balconyY, d/2 + 0.3]}>
+                                    {/* Balcony Floor */}
+                                    <mesh castShadow receiveShadow material={detailMat}>
+                                        <boxGeometry args={[w*0.7, 0.2, 0.7]} />
+                                    </mesh>
+                                    {/* Balcony Railing */}
+                                    <mesh position={[0, 0.6, 0.35]} castShadow material={detailMat}>
+                                         <boxGeometry args={[w*0.7, 1.2, 0.08]} />
+                                    </mesh>
+                                    {/* Railing Posts */}
+                                    {[-w*0.3, 0, w*0.3].map((x, j) => (
+                                        <mesh key={`post-${j}`} position={[x, 0.3, 0.35]} castShadow material={detailMat}>
+                                            <boxGeometry args={[0.08, 0.6, 0.08]} />
+                                        </mesh>
+                                    ))}
+                                </group>
+                            );
+                        })}
                         {renderRoofProps()}
                     </>
                 );
             case 'commercial':
                 return (
                     <>
+                        {/* Foundation - Simplified */}
+                        <mesh position={[0, -halfH - 0.1, 0]} castShadow receiveShadow>
+                            <boxGeometry args={[w + 0.2, 0.2, d + 0.2]} />
+                            <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+                        </mesh>
+                        
+                        {/* Main Building Structure */}
                         <mesh position={[0, 0, 0]} castShadow receiveShadow material={mainMat}>
                              <boxGeometry args={[w, h, d]} />
                         </mesh>
-                        {/* Awning */}
-                        <group position={[0, -halfH + 1.5, d/2 + 0.5]}>
-                             <mesh rotation={[0.2, 0, 0]} castShadow>
-                                 <boxGeometry args={[w*0.9, 0.1, 1.2]} />
-                                 <meshStandardMaterial color={arch.baseColor} />
-                             </mesh>
+                        
+                        {/* Storefront Window - Simplified */}
+                        <group position={[0, -halfH + 2.5, d/2 + 0.01]}>
+                            <mesh material={detailMat}>
+                                <boxGeometry args={[w*0.9, 3.5, 0.06]} />
+                            </mesh>
+                            <mesh position={[0, 0, 0.03]}>
+                                <boxGeometry args={[w*0.85, 3.3, 0.02]} />
+                                <meshStandardMaterial 
+                                    color={isNight ? "#ffff00" : "#e0f2fe"} 
+                                    emissive={isNight ? "#ffff00" : "#000000"}
+                                    emissiveIntensity={isNight ? 1.5 : 0}
+                                    transparent
+                                    opacity={0.85}
+                                />
+                            </mesh>
                         </group>
-                        {/* Signage */}
-                        <mesh position={[0, halfH - 1, d/2 + 0.1]}>
-                             <boxGeometry args={[w*0.8, 1, 0.1]} />
-                             <meshStandardMaterial color="#111" />
+                        
+                        {/* Simple Awning */}
+                        <group position={[0, -halfH + 1.5, d/2 + 0.6]}>
+                             <mesh rotation={[0.15, 0, 0]} castShadow receiveShadow>
+                                 <boxGeometry args={[w*0.95, 0.2, 1.4]} />
+                                 <meshStandardMaterial color={arch.baseColor} roughness={0.6} />
+                             </mesh>
+                             {/* Simple Supports */}
+                             {[-w*0.4, w*0.4].map((x, i) => (
+                                 <mesh key={`support-${i}`} position={[x, -0.3, 0]} castShadow material={detailMat}>
+                                     <cylinderGeometry args={[0.1, 0.1, 0.6, 8]} />
+                                 </mesh>
+                             ))}
+                        </group>
+                        
+                        {/* Signage - Simplified */}
+                        <mesh position={[0, halfH - 1.5, d/2 + 0.1]} castShadow>
+                             <boxGeometry args={[w*0.85, 1.5, 0.15]} />
+                             <meshStandardMaterial 
+                                 color={isNight ? "#ff6b00" : "#1a1a1a"} 
+                                 emissive={isNight ? "#ff6b00" : "#000000"}
+                                 emissiveIntensity={isNight ? 1.5 : 0}
+                             />
                         </mesh>
                         {renderRoofProps()}
                     </>
@@ -155,15 +290,66 @@ const Building: React.FC<BuildingProps> = ({ entity, textures, isNight, stateRef
             case 'industrial':
                  return (
                     <>
+                        {/* Foundation - Simplified */}
+                        <mesh position={[0, -halfH - 0.1, 0]} castShadow receiveShadow>
+                            <boxGeometry args={[w + 0.2, 0.2, d + 0.2]} />
+                            <meshStandardMaterial color="#1a1a1a" roughness={0.95} />
+                        </mesh>
+                        
+                        {/* Main Building Structure */}
                          <mesh position={[0, 0, 0]} castShadow receiveShadow material={mainMat}>
                              <boxGeometry args={[w, h, d]} />
                          </mesh>
-                         {/* Smokestack */}
-                         <mesh position={[w*0.25, halfH + 2, 0]} castShadow material={detailMat}>
-                             <cylinderGeometry args={[0.6, 0.6, 4, 16]} />
-                         </mesh>
-                         <mesh position={[0, halfH+0.1, 0]} material={roofMat}>
-                             <boxGeometry args={[w, 0.2, d]} />
+                         
+                         {/* Simple Industrial Windows */}
+                         {Array.from({ length: Math.min(3, Math.floor(h/4)) }).map((_, i) => {
+                             const windowY = -halfH + 3 + (i * 4);
+                             if (windowY > halfH - 2) return null;
+                             return (
+                                 <group key={`window-${i}`} position={[0, windowY, d/2 + 0.01]}>
+                                     <mesh material={detailMat}>
+                                         <boxGeometry args={[w*0.6, 0.8, 0.06]} />
+                                     </mesh>
+                                     <mesh position={[0, 0, 0.03]}>
+                                         <boxGeometry args={[w*0.55, 0.7, 0.02]} />
+                                         <meshStandardMaterial 
+                                             color={isNight ? "#ffaa00" : "#4a5568"} 
+                                             emissive={isNight ? "#ffaa00" : "#000000"}
+                                             emissiveIntensity={isNight ? 0.6 : 0}
+                                             transparent
+                                             opacity={0.6}
+                                         />
+                                     </mesh>
+                                 </group>
+                             );
+                         })}
+                         
+                         {/* Loading Bay Door - Simplified */}
+                         <group position={[0, -halfH + 1.5, d/2 + 0.01]}>
+                             <mesh castShadow material={detailMat}>
+                                 <boxGeometry args={[w*0.6, 2.5, 0.1]} />
+                             </mesh>
+                             <mesh position={[0, 0, 0.05]}>
+                                 <boxGeometry args={[w*0.55, 2.4, 0.02]} />
+                                 <meshStandardMaterial color="#2a2a2a" roughness={0.8} />
+                             </mesh>
+                         </group>
+                         
+                         {/* Smokestack - Simplified */}
+                         {arch.hasVents && (
+                             <group position={[w*0.3, halfH + 0.5, 0]}>
+                                 <mesh castShadow material={detailMat}>
+                                     <cylinderGeometry args={[0.7, 0.7, 4, 12]} />
+                                 </mesh>
+                                 <mesh position={[0, 2.5, 0]} castShadow material={detailMat}>
+                                     <cylinderGeometry args={[0.75, 0.7, 0.3, 12]} />
+                                 </mesh>
+                             </group>
+                         )}
+                         
+                         {/* Roof */}
+                         <mesh position={[0, halfH+0.1, 0]} castShadow receiveShadow material={roofMat}>
+                             <boxGeometry args={[w, 0.3, d]} />
                          </mesh>
                     </>
                  )
@@ -179,8 +365,16 @@ const Building: React.FC<BuildingProps> = ({ entity, textures, isNight, stateRef
         }
     }
 
+    // Building Y position: entity.pos.y is already set to half height in worldGen
+    // This ensures the building center is at half height, so bottom touches ground
+    const buildingY = entity.pos.y;
+    
     return (
-        <group ref={groupRef} position={[entity.pos.x, entity.pos.y, entity.pos.z]}>
+        <group 
+            ref={groupRef} 
+            position={[entity.pos.x, buildingY, entity.pos.z]}
+            rotation={[0, 0, 0]} // Ensure buildings are upright
+        >
             {renderArchitecture()}
         </group>
     );

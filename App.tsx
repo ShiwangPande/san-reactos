@@ -23,6 +23,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     hasError: false,
     error: null
   };
+  props: any;
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -32,7 +33,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  render() {
+  render(): ReactNode {
     if (this.state.hasError) {
       return (
         <div className="flex items-center justify-center h-screen bg-red-900 text-white flex-col p-8">
@@ -51,7 +52,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       );
     }
 
-    return this.props.children;
+    return this.props.children || null;
   }
 }
 
@@ -89,12 +90,14 @@ const App: React.FC = () => {
     wantedLevel: 0,
     dialogue: null,
     mission: null,
-    player: { health: 100 } as any
+    player: { health: 100 } as any,
+    meleeCombo: 0
   });
  
   const [intro, setIntro] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
+  const [renderError, setRenderError] = useState<string | null>(null);
   
   // Use ref to access current intro state inside event listener without re-binding
   const introRef = useRef(intro);
@@ -180,19 +183,42 @@ const App: React.FC = () => {
 
   const isWasted = hudState.player?.state === 'dead';
 
+  // Debug: Log state
+  useEffect(() => {
+    console.log('App rendered, intro:', intro, 'showSettings:', showSettings);
+    try {
+      // Test if components can be accessed
+      if (!IntroScreen) throw new Error('IntroScreen not found');
+    } catch (e: any) {
+      setRenderError(e.message);
+      console.error('Render error:', e);
+    }
+  }, [intro, showSettings]);
+
+  if (renderError) {
+    return (
+      <div style={{ padding: '20px', color: 'white', background: 'red' }}>
+        <h1>Error: {renderError}</h1>
+        <button onClick={() => window.location.reload()}>Reload</button>
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary>
-      <div className="relative w-full h-screen bg-black overflow-hidden select-none font-sans">
+      <div className="relative w-full h-screen bg-black overflow-hidden select-none font-sans" style={{ width: '100vw', height: '100vh' }}>
         {(intro || showSettings) && <CustomCursor />}
 
         {isWasted && <WastedScreen />}
 
-        <GameCanvas 
-          onUpdateState={handleUpdateState} 
-          onMissionTrigger={handleMissionTrigger}
-          isMenuOpen={showSettings || intro}
-          settings={settings}
-        />
+        {!intro && (
+          <GameCanvas 
+            onUpdateState={handleUpdateState} 
+            onMissionTrigger={handleMissionTrigger}
+            isMenuOpen={showSettings || intro}
+            settings={settings}
+          />
+        )}
         
         {!intro && !showSettings && !isWasted && settings.gameplay.showHud && (
              <HUD state={hudState} onMissionClick={handleMissionTrigger} />

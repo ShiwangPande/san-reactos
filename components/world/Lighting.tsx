@@ -40,14 +40,31 @@ const Lighting: React.FC<LightingProps> = ({ stateRef, isNight }) => {
             let intensity = 0;
             const color = new THREE.Color();
             
-            if (t >= 300 && t <= 1200) { 
+            // Improved day/night cycle with smooth transitions
+            // Dawn: 5:00-7:00 (300-420), Day: 7:00-19:00 (420-1140), Dusk: 19:00-21:00 (1140-1260), Night: 21:00-5:00 (1260-300)
+            
+            if (t >= 420 && t < 1140) {
+                // Full day (7:00 AM - 7:00 PM)
                 intensity = 1.2;
-                if (t < 400) { intensity = (t - 300) / 100; color.setHSL(0.05, 0.8, 0.7); } 
-                else if (t > 1100) { intensity = 1.2 - ((t - 1100) / 100); color.setHSL(0.02, 0.9, 0.6); } 
-                else { color.setHSL(0, 0, 1); }
-            } else { 
-                intensity = 0.4; color.set("#60a5fa"); 
+                color.setHSL(0, 0, 1); // Pure white sunlight
+            } else if (t >= 300 && t < 420) {
+                // Dawn (5:00 AM - 7:00 AM) - Sunrise transition
+                const dawnProgress = (t - 300) / 120; // 0 to 1 over 2 hours
+                intensity = 0.3 + (dawnProgress * 0.9); // Fade in
+                const hue = 0.05 + (dawnProgress * 0.05); // Orange to yellow
+                color.setHSL(hue, 0.8 - (dawnProgress * 0.3), 0.5 + (dawnProgress * 0.3));
+            } else if (t >= 1140 && t < 1260) {
+                // Dusk (7:00 PM - 9:00 PM) - Sunset transition
+                const duskProgress = (t - 1140) / 120; // 0 to 1 over 2 hours
+                intensity = 1.2 - (duskProgress * 0.8); // Fade out
+                const hue = 0.02 + (duskProgress * 0.08); // Yellow to orange/red
+                color.setHSL(hue, 0.5 + (duskProgress * 0.3), 0.6 - (duskProgress * 0.2));
+            } else {
+                // Night (9:00 PM - 5:00 AM)
+                intensity = 0.3;
+                color.set("#60a5fa"); // Cool blue moonlight
             }
+            
             dirLight.current.intensity = intensity * 2;
             dirLight.current.color.copy(color);
         }

@@ -78,6 +78,12 @@ const HUD: React.FC<HUDProps> = ({ state, onMissionClick }) => {
              <div className="bg-black/70 text-white p-2 rounded flex items-center gap-2">
                  <Crosshair size={18} />
                  <span className="font-bold">{state.player?.inventory?.[0] || 'Fist'}</span>
+                 {/* Combo Counter for Melee */}
+                 {(state.player?.inventory?.[0] === 'Fist' || !state.player?.inventory?.[0]) && (state as any).meleeCombo > 0 && (
+                     <span className="ml-auto text-yellow-400 font-bold text-sm">
+                         COMBO x{(state as any).meleeCombo}
+                     </span>
+                 )}
              </div>
 
              {/* Health Bar */}
@@ -97,12 +103,13 @@ const HUD: React.FC<HUDProps> = ({ state, onMissionClick }) => {
 
       {/* Floating Instructions */}
       <div className="absolute bottom-4 right-4 text-white/50 text-xs text-right font-mono pointer-events-none">
-         <p>CLICK to Lock Mouse</p>
+         <p>CLICK to Lock Mouse / Attack</p>
          <p>MOUSE to Look</p>
          <p>WASD to Move</p>
          <p>V to Change View</p>
          <p>F to Enter/Exit Vehicle</p>
          <p>T to Talk</p>
+         <p className="text-yellow-400 mt-1">FIST: Click to Punch (Combo System!)</p>
       </div>
 
        {/* Phone Button */}

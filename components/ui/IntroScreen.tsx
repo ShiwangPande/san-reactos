@@ -32,10 +32,24 @@ const IntroScreen: React.FC<IntroScreenProps> = ({ onStart }) => {
         onStart();
     };
 
+    console.log('IntroScreen rendering');
+    
     return (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
+        <div 
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden" 
+            style={{ 
+                backgroundColor: '#0f172a',
+                width: '100vw',
+                height: '100vh',
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0
+            }}
+        >
             {/* Cinematic Background Layer */}
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-[#0f172a] to-black opacity-95"></div>
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-[#0f172a] to-black" style={{ opacity: 0.95 }}></div>
             
             {/* Animated Particles/Stars */}
             <div className="absolute inset-0 pointer-events-none">

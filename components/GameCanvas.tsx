@@ -60,6 +60,11 @@ const GameCanvas = ({ onUpdateState, onMissionTrigger, isMenuOpen, settings }: G
     const { map, entities } = generateWorld();
     stateRef.current.map = map;
     stateRef.current.entities = entities;
+    
+    // Debug: Log building count
+    const buildingCount = entities.filter(e => e.type === EntityType.BUILDING).length;
+    console.log(`Generated ${buildingCount} buildings out of ${entities.length} total entities`);
+    
     onUpdateState({ player: stateRef.current.player });
     
     // Simulate short delay for UI stability
@@ -130,7 +135,16 @@ const GameCanvas = ({ onUpdateState, onMissionTrigger, isMenuOpen, settings }: G
         shadows 
         dpr={getDpr()}
         camera={{ position: [0, 10, 15], fov: 60 }} 
-        style={{ background: '#0f172a' }} 
+        style={{ 
+            background: '#0f172a', 
+            position: 'absolute', 
+            top: 0, 
+            left: 0, 
+            width: '100%', 
+            height: '100%', 
+            zIndex: 0,
+            pointerEvents: isMenuOpen ? 'none' : 'auto'
+        }} 
         gl={{ 
             antialias: false, 
             toneMapping: THREE.ACESFilmicToneMapping, 

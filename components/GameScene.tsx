@@ -92,45 +92,149 @@ const GameScene: React.FC<GameSceneProps> = ({ stateRef, onUpdateState, isMenuOp
         };
     }, [gl.domElement, isMenuOpen]); // Re-bind if menu state changes
 
+    // Melee combo tracking
+    const meleeComboCount = useRef(0);
+    const lastMeleeTime = useRef(0);
+    const meleeComboResetTime = 1000; // Reset combo after 1 second
+
     const handleAttack = () => {
         const s = stateRef.current;
         const player = s.player;
         if (player.state === 'driving' || player.state === 'dead') return;
 
         const now = performance.now();
-        if (now - lastShootTime.current < 200) return; // Fire rate limit
-        lastShootTime.current = now;
-
         const weapon = player.inventory?.[0] || WeaponType.FIST;
 
         if (weapon !== WeaponType.FIST) {
-             audioManager.playShot(); // SFX
-             
-             // Combat music trigger logic could go here (e.g. if shots fired near cops)
-             if (s.wantedLevel === 0) {
-                 s.wantedLevel = 1; // Instant wanted level for shooting
-                 onUpdateState({ wantedLevel: 1 });
-             }
+            // Ranged weapon logic
+            if (now - lastShootTime.current < 200) return; // Fire rate limit
+            lastShootTime.current = now;
 
-             const yaw = player.rotation.y;
-             const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
-             const spawnPos = new THREE.Vector3(player.pos.x, 1.5, player.pos.z).add(dir.multiplyScalar(0.5));
+            audioManager.playShot(); // SFX
              
-             const bullet: Entity = {
-                 id: Math.random().toString(36),
-                 type: EntityType.PROJECTILE,
-                 pos: { x: spawnPos.x, y: spawnPos.y, z: spawnPos.z },
-                 vel: { x: dir.x * 40, y: 0, z: dir.z * 40 },
-                 size: { x: 0.1, y: 0.1, z: 0.1 },
-                 color: 'yellow',
-                 health: 1,
-                 maxHealth: 1,
-                 rotation: { x:0, y:0, z:0 },
-                 state: 'idle'
-             };
+            // Combat music trigger logic could go here (e.g. if shots fired near cops)
+            if (s.wantedLevel === 0) {
+                s.wantedLevel = 1; // Instant wanted level for shooting
+                onUpdateState({ wantedLevel: 1 });
+            }
+
+            const yaw = player.rotation.y;
+            const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
+            const spawnPos = new THREE.Vector3(player.pos.x, 1.5, player.pos.z).add(dir.multiplyScalar(0.5));
              
-             s.entities.push(bullet);
-             setTick(t => t + 1);
+            const bullet: Entity = {
+                id: Math.random().toString(36),
+                type: EntityType.PROJECTILE,
+                pos: { x: spawnPos.x, y: spawnPos.y, z: spawnPos.z },
+                vel: { x: dir.x * 40, y: 0, z: dir.z * 40 },
+                size: { x: 0.1, y: 0.1, z: 0.1 },
+                color: 'yellow',
+                health: 1,
+                maxHealth: 1,
+                rotation: { x:0, y:0, z:0 },
+                state: 'idle'
+            };
+             
+            s.entities.push(bullet);
+            setTick(t => t + 1);
+        } else {
+            // FIST BUMP / MELEE ATTACK
+            const meleeCooldown = 400; // Faster than ranged
+            if (now - lastShootTime.current < meleeCooldown) return;
+            
+            // Reset combo if too much time passed
+            if (now - lastMeleeTime.current > meleeComboResetTime) {
+                meleeComboCount.current = 0;
+                onUpdateState({ meleeCombo: 0 });
+            }
+            
+            lastShootTime.current = now;
+            lastMeleeTime.current = now;
+            meleeComboCount.current = (meleeComboCount.current + 1) % 4; // 0-3 combo hits
+            
+            // Play punch sound
+            audioManager.playUI('punch');
+            
+            // Melee attack range and damage (balanced for GTA-style gameplay)
+            const attackRange = 2.5;
+            const baseDamage = 8; // Reduced from 15 for better balance
+            const comboMultiplier = 1 + (meleeComboCount.current * 0.25); // 1x, 1.25x, 1.5x, 1.75x (slightly reduced)
+            const damage = Math.floor(baseDamage * comboMultiplier);
+            
+            const yaw = player.rotation.y;
+            const attackDir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
+            const attackPos = new THREE.Vector3(player.pos.x, player.pos.y + 1.2, player.pos.z);
+            
+            // Check for nearby entities to hit
+            let hitSomething = false;
+            for (const target of s.entities) {
+                if (target.id === player.id || target.state === 'dead') continue;
+                if (target.type === EntityType.PROJECTILE || target.type === EntityType.ITEM_WEAPON) continue;
+                if (target.type === EntityType.BUILDING || target.type === EntityType.PROP) continue;
+                
+                const dx = target.pos.x - attackPos.x;
+                const dz = target.pos.z - attackPos.z;
+                const dist = Math.sqrt(dx*dx + dz*dz);
+                
+                // Check if target is in front of player and within range
+                const toTarget = new THREE.Vector3(dx, 0, dz).normalize();
+                const dot = attackDir.dot(toTarget);
+                
+                if (dist < attackRange && dot > 0.5) { // 60 degree cone in front
+                    hitSomething = true;
+                    
+                    // Apply damage
+                    target.health -= damage;
+                    if (target.health <= 0) {
+                        target.state = 'dead';
+                        target.health = 0;
+                        // Drop money or items on death
+                        if (target.type === EntityType.CIVILIAN || target.type === EntityType.GANG_MEMBER) {
+                            s.money += Math.floor(Math.random() * 50) + 20;
+                        }
+                    }
+                    
+                    // Knockback effect
+                    const knockbackForce = 8 * comboMultiplier;
+                    target.vel.x += attackDir.x * knockbackForce;
+                    target.vel.z += attackDir.z * knockbackForce;
+                    
+                    // Update wanted level if hitting civilians/police
+                    if (target.type === EntityType.CIVILIAN || target.type === EntityType.POLICE) {
+                        if (s.wantedLevel < 2) {
+                            s.wantedLevel = 2;
+                            onUpdateState({ wantedLevel: 2 });
+                        }
+                    }
+                    
+                    onUpdateState({ 
+                        player: { ...player },
+                        entities: [...s.entities],
+                        money: s.money
+                    });
+                    break; // Only hit one target per punch
+                }
+            }
+            
+                    // Set player to punching state briefly
+            player.state = 'punching';
+            setTimeout(() => {
+                if (player.state === 'punching') {
+                    player.state = 'idle';
+                    onUpdateState({ player: { ...player } });
+                }
+            }, 200);
+            
+            // Update combo in state for HUD
+            onUpdateState({ 
+                player: { ...player },
+                meleeCombo: meleeComboCount.current + 1
+            });
+            
+            // Visual feedback
+            if (hitSomething) {
+                console.log(`Punch hit! Combo: ${meleeComboCount.current + 1}, Damage: ${damage}`);
+            }
         }
     };
 
@@ -163,11 +267,18 @@ const GameScene: React.FC<GameSceneProps> = ({ stateRef, onUpdateState, isMenuOp
 
         const keys = getKeys();
 
-        // 1. Time & Environment
-        s.timeOfDay += TIME_SPEED;
+        // 1. Time & Environment (Improved day/night cycle)
+        s.timeOfDay += TIME_SPEED * delta * 60; // Scale by delta for consistent speed
         if (s.timeOfDay >= 1440) s.timeOfDay = 0;
-        const currentIsNight = s.timeOfDay > 1140 || s.timeOfDay < 300;
-        if (currentIsNight !== isNight) setIsNight(currentIsNight);
+        
+        // Better day/night detection with smoother transitions
+        // Dawn: 5:00-7:00 (300-420), Day: 7:00-19:00 (420-1140), Dusk: 19:00-21:00 (1140-1260), Night: 21:00-5:00 (1260-300)
+        const currentIsNight = s.timeOfDay >= 1260 || s.timeOfDay < 420;
+        if (currentIsNight !== isNight) {
+            setIsNight(currentIsNight);
+            // Smooth transition notification
+            console.log(`Time: ${Math.floor(s.timeOfDay/60)}:${Math.floor(s.timeOfDay%60).toString().padStart(2,'0')} - ${currentIsNight ? 'Night' : 'Day'}`);
+        }
 
         // Update Ambience SFX
         audioManager.updateAmbiance(currentIsNight);
@@ -264,8 +375,11 @@ const GameScene: React.FC<GameSceneProps> = ({ stateRef, onUpdateState, isMenuOp
                     return; // Skip rest of frame
                 }
             } else if (!player.vehicleId) {
-                // Normal Ground Height
-                const groundH = s.map.elevations[tileZ][tileX] + 1.5; // + half height
+                // Normal Ground Height - Position character so feet touch ground
+                // Character model: root at bottom, hips at 0.94, total height ~1.8
+                // Feet are approximately at root position
+                const groundElevation = s.map.elevations[tileZ][tileX];
+                const groundH = groundElevation + 0.05; // Small offset to ensure feet touch ground
                 player.pos.y = damp(player.pos.y, groundH, 10, delta);
             }
         } else {

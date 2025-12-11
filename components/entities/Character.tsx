@@ -38,10 +38,10 @@ const Character: React.FC<CharacterProps> = ({ entity, isPlayer, stateRef }) => 
 
     // --- MATERIALS ---
     const materials = useMemo(() => {
-        // Dynamic colors based on faction/player
-        const shirtColor = new THREE.Color(isPlayer ? "#2563eb" : entity.color);
-        const pantsColor = new THREE.Color("#334155"); // Slate 700 (Jeans/Chinos)
-        const skinColor = new THREE.Color("#e0ac69"); // Realistic warm tan
+        // GTA-style colors - more vibrant and distinct
+        const shirtColor = new THREE.Color(isPlayer ? "#1e40af" : entity.color); // Deeper blue for player
+        const pantsColor = new THREE.Color("#1e293b"); // Darker jeans (GTA style)
+        const skinColor = new THREE.Color("#d4a574"); // Slightly lighter, more GTA-like skin tone
         
         // Material Helper
         // flatShading: false creates the "smooth low poly" look (PS2/GTA era)
@@ -54,17 +54,17 @@ const Character: React.FC<CharacterProps> = ({ entity, isPlayer, stateRef }) => 
             });
 
         return {
-            skin: mat(skinColor, 0.6, true),
-            shirt: mat(shirtColor, 0.9, true),
-            pants: mat(pantsColor, 0.8, true),
-            shoes: mat("#111", 0.6, false), // Hard surface
-            sole: mat("#444", 0.9, false),
-            hair: mat("#1a120b", 0.9, false), // Dark brown/Black
-            eyesWhite: mat("#fff", 0.2, false),
-            eyesPupil: mat("#111", 0.0, false),
-            lips: mat(skinColor.clone().multiplyScalar(0.85), 0.5, true),
-            weapon: mat("#1f2937", 0.4, false),
-            accessory: mat("#f59e0b", 0.5, false)
+            skin: mat(skinColor, 0.6, true), // Smooth skin with slight shine
+            shirt: mat(shirtColor, 0.75, true), // More polished fabric
+            pants: mat(pantsColor, 0.85, true), // Denim texture
+            shoes: mat("#050505", 0.4, false), // Very black, glossy shoes
+            sole: mat("#1a1a1a", 0.9, false), // Dark rubber sole
+            hair: mat("#0a0a0a", 0.7, false), // Deep black hair with slight shine
+            eyesWhite: mat("#ffffff", 0.05, false), // Bright white eyes
+            eyesPupil: mat("#000000", 0.0, false), // Pure black pupils
+            lips: mat(skinColor.clone().multiplyScalar(0.88), 0.5, true), // Subtle lip color
+            weapon: mat("#1a1a1a", 0.2, false), // Very dark, metallic weapon
+            accessory: mat("#f59e0b", 0.5, false) // Vibrant gold accessory
         };
     }, [entity.color, isPlayer]);
 
@@ -72,16 +72,20 @@ const Character: React.FC<CharacterProps> = ({ entity, isPlayer, stateRef }) => 
     useFrame((state, delta) => {
         if (!rootRef.current) return;
 
-        // 1. Culling
+        // 1. Culling (only for NPCs, player is always visible)
         if (!isPlayer) {
             const pPos = stateRef.current.player.pos;
             const distSq = (entity.pos.x - pPos.x)**2 + (entity.pos.z - pPos.z)**2;
             const visible = distSq < CULL_DISTANCE ** 2;
             rootRef.current.visible = visible;
             if (!visible) return;
+        } else {
+            // Ensure player is always visible
+            rootRef.current.visible = true;
         }
 
-        // 2. Movement Smoothing
+        // 2. Movement Smoothing - Character root positioned at entity.pos
+        // Entity.pos.y is the ground level for the character root
         const targetPos = new THREE.Vector3(entity.pos.x, entity.pos.y, entity.pos.z);
         rootRef.current.position.lerp(targetPos, 20 * delta);
 
@@ -94,11 +98,13 @@ const Character: React.FC<CharacterProps> = ({ entity, isPlayer, stateRef }) => 
         // 3. Procedural Animation Rig
         const speed = Math.sqrt(entity.vel.x**2 + entity.vel.z**2);
         const isMoving = speed > 0.1;
+        const isPunching = entity.state === 'punching';
 
         // Animation Time Bases
         const t = state.clock.elapsedTime;
         const walkCycle = t * 11;       // Fast frequency for running
         const breathCycle = t * 2.5;    // Slow frequency for idle breathing
+        const punchTime = isPunching ? (t % 0.3) : 0; // 0.3 second punch animation
 
         // -- Spine / Breathing --
         if (hipsRef.current && spineRef.current && chestRef.current) {
@@ -178,7 +184,18 @@ const Character: React.FC<CharacterProps> = ({ entity, isPlayer, stateRef }) => 
         }
 
         if (rArmRef.current && rForearmRef.current && rHandRef.current) {
-            if (hasWeapon) {
+            if (isPunching) {
+                // Punch Animation: Quick forward punch
+                const punchProgress = Math.min(punchTime / 0.15, 1); // 0 to 1 over 0.15s
+                const punchEase = punchProgress < 0.5 
+                    ? punchProgress * 2  // Fast forward
+                    : 1 - ((punchProgress - 0.5) * 2); // Slow return
+                
+                rArmRef.current.rotation.x = -0.3 - (punchEase * 1.2); // Extend forward
+                rArmRef.current.rotation.z = -0.2 - (punchEase * 0.3); // Slight outward
+                rForearmRef.current.rotation.x = -0.2 - (punchEase * 0.5);
+                rHandRef.current.rotation.x = punchEase * 0.3; // Fist clench
+            } else if (hasWeapon) {
                 // Aim Pose - Add subtle breath noise
                 const breathNoise = Math.sin(breathCycle) * 0.005;
                 rArmRef.current.rotation.x = -Math.PI / 2 + Math.sin(t * 2) * 0.01 + breathNoise;
@@ -200,6 +217,14 @@ const Character: React.FC<CharacterProps> = ({ entity, isPlayer, stateRef }) => 
                 }
             }
         }
+        
+        // Left arm also participates in punch (slight pull back)
+        if (lArmRef.current && isPunching) {
+            const punchProgress = Math.min(punchTime / 0.15, 1);
+            const punchEase = punchProgress < 0.5 ? punchProgress * 2 : 1 - ((punchProgress - 0.5) * 2);
+            lArmRef.current.rotation.x = 0.1 + (punchEase * 0.3); // Pull back slightly
+            lArmRef.current.rotation.z = 0.1;
+        }
 
         // -- Head (Look & Stabilization) --
         if (headGroupRef.current) {
@@ -209,10 +234,10 @@ const Character: React.FC<CharacterProps> = ({ entity, isPlayer, stateRef }) => 
         }
     });
 
-    const GEOM_RES = 10; // 10 radial segments for limbs (Smooth Low Poly)
+    const GEOM_RES = 12; // Increased segments for smoother, more polished look
 
     return (
-        <group ref={rootRef}>
+        <group ref={rootRef} visible={true}>
             {/* --- RIG START: HIPS (Pelvis) --- */}
             <group ref={hipsRef} position={[0, 0.94, 0]}>
                 {/* Hips Mesh */}
@@ -277,14 +302,21 @@ const Character: React.FC<CharacterProps> = ({ entity, isPlayer, stateRef }) => 
                     
                     {/* --- CHEST (Torso) --- */}
                     <group ref={chestRef} position={[0, 0.24, 0]}>
-                         {/* Upper Torso */}
+                         {/* Upper Torso - More GTA-like proportions */}
                          <mesh position={[0, 0.14, 0]} castShadow material={materials.shirt}>
-                             {/* Broad shoulders tapering down to spine (V-Shape) */}
-                             <cylinderGeometry args={[0.18, 0.14, 0.32, GEOM_RES]} />
+                             {/* Broader shoulders for GTA look */}
+                             <cylinderGeometry args={[0.20, 0.15, 0.34, GEOM_RES]} />
                          </mesh>
-                         {/* Pectoral Definition (Subtle Box) */}
-                         <mesh position={[0, 0.16, 0.08]} rotation={[-0.1,0,0]} material={materials.shirt}>
-                              <boxGeometry args={[0.26, 0.15, 0.1]} />
+                         {/* Pectoral Definition - More pronounced */}
+                         <mesh position={[0, 0.16, 0.09]} rotation={[-0.1,0,0]} material={materials.shirt}>
+                              <boxGeometry args={[0.28, 0.16, 0.12]} />
+                         </mesh>
+                         {/* Shoulder pads effect */}
+                         <mesh position={[-0.22, 0.20, 0]} castShadow material={materials.shirt}>
+                              <boxGeometry args={[0.06, 0.08, 0.12]} />
+                         </mesh>
+                         <mesh position={[0.22, 0.20, 0]} castShadow material={materials.shirt}>
+                              <boxGeometry args={[0.06, 0.08, 0.12]} />
                          </mesh>
 
                          {/* --- HEAD GROUP --- */}
@@ -294,15 +326,29 @@ const Character: React.FC<CharacterProps> = ({ entity, isPlayer, stateRef }) => 
                                  <cylinderGeometry args={[0.055, 0.065, 0.12, 8]} />
                              </mesh>
                              
-                             {/* Head Container */}
+                             {/* Head Container - GTA style proportions */}
                              <group position={[0, 0.18, 0.02]}>
-                                 {/* Cranium */}
-                                 <mesh position={[0, 0.02, -0.02]} castShadow material={materials.skin}>
-                                     <boxGeometry args={[0.19, 0.2, 0.22]} />
+                                 {/* Cranium - Slightly larger for GTA look */}
+                                 <mesh position={[0, 0.02, -0.02]} castShadow receiveShadow material={materials.skin}>
+                                     <boxGeometry args={[0.20, 0.21, 0.23]} />
                                  </mesh>
-                                 {/* Jawline / Chin (Tapered) */}
-                                 <mesh position={[0, -0.08, 0.02]} castShadow material={materials.skin}>
-                                     <boxGeometry args={[0.17, 0.08, 0.18]} />
+                                 {/* Jawline / Chin - More defined */}
+                                 <mesh position={[0, -0.09, 0.02]} castShadow receiveShadow material={materials.skin}>
+                                     <boxGeometry args={[0.18, 0.09, 0.19]} />
+                                 </mesh>
+                                 {/* Cheekbones - GTA style definition (subtle) */}
+                                 <mesh position={[-0.08, -0.02, 0.05]} castShadow material={materials.skin}>
+                                     <boxGeometry args={[0.025, 0.05, 0.03]} />
+                                 </mesh>
+                                 <mesh position={[0.08, -0.02, 0.05]} castShadow material={materials.skin}>
+                                     <boxGeometry args={[0.025, 0.05, 0.03]} />
+                                 </mesh>
+                                 {/* Neck muscles - More defined for GTA look */}
+                                 <mesh position={[-0.06, -0.15, 0]} castShadow material={materials.skin}>
+                                     <boxGeometry args={[0.02, 0.08, 0.04]} />
+                                 </mesh>
+                                 <mesh position={[0.06, -0.15, 0]} castShadow material={materials.skin}>
+                                     <boxGeometry args={[0.02, 0.08, 0.04]} />
                                  </mesh>
                                  {/* Hair (Short Fade Cut) */}
                                  <mesh position={[0, 0.06, -0.01]} castShadow material={materials.hair}>

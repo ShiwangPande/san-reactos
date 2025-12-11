@@ -38,7 +38,7 @@ export interface Entity {
   maxHealth: number;
   color: string;
   size: Vector3; // Width, Height, Depth
-  state: 'idle' | 'walking' | 'driving' | 'dead' | 'entering_vehicle' | 'exiting_vehicle';
+  state: 'idle' | 'walking' | 'driving' | 'dead' | 'entering_vehicle' | 'exiting_vehicle' | 'punching';
   vehicleId?: string | null; // ID of vehicle currently driving
   targetEntityId?: string; // ID of entity interacting with
   inventory?: string[];
@@ -68,6 +68,7 @@ export interface GameState {
   dialogue: { speaker: string; text: string } | null;
   mission: string | null;
   paused: boolean;
+  meleeCombo?: number; // Current melee combo count (0-3)
 }
 
 export enum WeaponType {

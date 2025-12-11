@@ -18,7 +18,7 @@ export const WORLD_COLORS = {
   [TileType.FLOOR]: '#78716c', // stone-500
 };
 
-export const TIME_SPEED = 0.5; // Minutes per frame
+export const TIME_SPEED = 0.1; // Minutes per frame (slower for better day/night transitions)
 export const PLAYER_SPEED = 0.15;
 export const CAR_SPEED = 0.4;
 export const ROTATION_SPEED = 0.05;

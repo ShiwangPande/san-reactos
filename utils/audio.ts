@@ -404,7 +404,7 @@ export class AudioManager {
       n.start(t);
     }
 
-    playUI(type: 'hover' | 'click' | 'mission') {
+    playUI(type: 'hover' | 'click' | 'mission' | 'punch') {
         if (!this.initialized) return;
         const t = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
@@ -421,6 +421,32 @@ export class AudioManager {
             osc.frequency.exponentialRampToValueAtTime(1200, t+0.1);
             g.gain.setValueAtTime(0.1 * this.sfxVol, t);
             g.gain.exponentialRampToValueAtTime(0.001, t+0.1);
+        } else if (type === 'punch') {
+            // Punch sound: Low thud with high frequency impact
+            const osc1 = this.ctx.createOscillator();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(80, t);
+            osc1.frequency.exponentialRampToValueAtTime(40, t+0.15);
+            const g1 = this.ctx.createGain();
+            g1.gain.setValueAtTime(0.3 * this.sfxVol, t);
+            g1.gain.exponentialRampToValueAtTime(0.001, t+0.15);
+            osc1.connect(g1); g1.connect(this.master);
+            osc1.start(t); osc1.stop(t+0.15);
+            
+            // Impact crack
+            const osc2 = this.ctx.createOscillator();
+            osc2.type = 'square';
+            osc2.frequency.setValueAtTime(200, t);
+            osc2.frequency.exponentialRampToValueAtTime(800, t+0.05);
+            const g2 = this.ctx.createGain();
+            g2.gain.setValueAtTime(0.2 * this.sfxVol, t);
+            g2.gain.exponentialRampToValueAtTime(0.001, t+0.1);
+            const f = this.ctx.createBiquadFilter();
+            f.type = 'bandpass';
+            f.frequency.value = 1000;
+            osc2.connect(f); f.connect(g2); g2.connect(this.master);
+            osc2.start(t); osc2.stop(t+0.1);
+            return;
         } else if (type === 'mission') {
             // Success chord
             this.music.playPadChord(['C4', 'E4', 'G4', 'C5'], t, 2, this.sfxVol);

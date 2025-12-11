@@ -142,8 +142,8 @@ export const generateWorld = (): { map: GameMap; entities: Entity[] } => {
                    });
               }
           } else {
-             // Buildings (Inner block)
-             if (Math.random() < 0.25) {
+             // Buildings (Inner block) - Increased density for better visibility
+             if (Math.random() < 0.6) {
                 const rand = Math.random();
                 let bType: 'skyscraper' | 'residential' | 'commercial' | 'industrial' = 'commercial';
                 let height = 6 + Math.random() * 6;
